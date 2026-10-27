@@ -277,59 +277,32 @@ export class Game {
         p.shootCooldown = cooldown;
         const damage = 5 + level * 3;
         const speed = 600;
+        const gunCount = level; // количество пулемётов = уровень
         
-        // Center bullet(s)
-        this.bullets.push({
-          x: p.x, y: p.y - p.height / 2,
-          vx: 0, vy: -speed, damage, radius: 3,
-          color: '#ffff00', isPlayer: true
-        });
-        this.stats.shotsFired++;
+        // Располагаем пулемёты равномерно по ширине корабля
+        // Все стреляют строго вверх, с небольшим горизонтальным разбросом для красоты
+        for (let i = 0; i < gunCount; i++) {
+          // Позиция пулемёта по горизонтали (равномерно от -20 до +20)
+          const offset = gunCount === 1 
+            ? 0 
+            : -20 + (40 * i) / (gunCount - 1);
+          
+          // Небольшой разброс vx для визуального эффекта веера
+          const spread = gunCount === 1 ? 0 : (offset / 20) * 30;
+          
+          this.bullets.push({
+            x: p.x + offset,
+            y: p.y - p.height / 2,
+            vx: spread,
+            vy: -speed,
+            damage,
+            radius: 3,
+            color: '#ffff00',
+            isPlayer: true
+          });
+          this.stats.shotsFired++;
+        }
         audio.shootMachinegun();
-
-        if (level >= 2) {
-          this.bullets.push({
-            x: p.x - 10, y: p.y - p.height / 2 + 5,
-            vx: -50, vy: -speed, damage, radius: 3,
-            color: '#ffff00', isPlayer: true
-          });
-          this.bullets.push({
-            x: p.x + 10, y: p.y - p.height / 2 + 5,
-            vx: 50, vy: -speed, damage, radius: 3,
-            color: '#ffff00', isPlayer: true
-          });
-        }
-        if (level >= 3) {
-          this.bullets.push({
-            x: p.x - 15, y: p.y - p.height / 2 + 10,
-            vx: -120, vy: -speed * 0.9, damage, radius: 3,
-            color: '#ffff00', isPlayer: true
-          });
-          this.bullets.push({
-            x: p.x + 15, y: p.y - p.height / 2 + 10,
-            vx: 120, vy: -speed * 0.9, damage, radius: 3,
-            color: '#ffff00', isPlayer: true
-          });
-        }
-        if (level >= 4) {
-          this.bullets.push({
-            x: p.x, y: p.y + p.height / 2,
-            vx: 0, vy: speed * 0.7, damage: damage * 0.5, radius: 3,
-            color: '#ffaa00', isPlayer: true
-          });
-        }
-        if (level >= 5) {
-          this.bullets.push({
-            x: p.x - 20, y: p.y,
-            vx: -200, vy: -speed * 0.7, damage: damage * 0.7, radius: 3,
-            color: '#ffff00', isPlayer: true
-          });
-          this.bullets.push({
-            x: p.x + 20, y: p.y,
-            vx: 200, vy: -speed * 0.7, damage: damage * 0.7, radius: 3,
-            color: '#ffff00', isPlayer: true
-          });
-        }
         break;
       }
       case 'laser': {
@@ -425,7 +398,7 @@ export class Game {
     switch (p.ultimate) {
       case 'bomb': {
         // Big damage in radius around player
-        const radius = 200;
+        const radius = 350;
         for (let i = this.enemies.length - 1; i >= 0; i--) {
           const e = this.enemies[i];
           const dx = e.x - p.x;
@@ -438,6 +411,7 @@ export class Game {
           x: p.x, y: p.y, radius: 0, maxRadius: radius,
           alpha: 1, color: '#ff4400'
         });
+        this.screenShake = 0.8;
         audio.bigExplosion();
         break;
       }
@@ -2209,7 +2183,9 @@ export class Game {
       rockets: 'Ракеты'
     };
     let weaponDesc = `${weaponNames[p.weapon]} [Ур.${p.weaponLevel}]`;
-    if (p.weapon === 'laser') {
+    if (p.weapon === 'machinegun') {
+      weaponDesc += ` x${p.weaponLevel}`;
+    } else if (p.weapon === 'laser') {
       if (p.weaponLevel >= 5) weaponDesc += ' ↑↓←→';
       else if (p.weaponLevel >= 3) weaponDesc += ' ↑↓';
     } else if (p.weapon === 'rockets') {
