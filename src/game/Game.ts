@@ -104,7 +104,7 @@ export class Game {
       shootCooldown: 0,
       laserBurstCount: 0,
       laserBurstTimer: 0,
-      nextLifeAt: 1000,
+      livesFromScore: 0,
     };
   }
 
@@ -945,12 +945,20 @@ export class Game {
     const p = this.player;
     p.score += amount;
     
-    // Проверяем порог очков для дополнительной жизни
-    while (p.score >= p.nextLifeAt && p.lives < p.maxLives) {
-      p.lives++;
-      this.addFloatingText(p.x, p.y - 40, '+1 ❤ (1000 очков)!', '#ff4444');
-      audio.pickup();
-      p.nextLifeAt += 1000;
+    // Прогрессивная система: первая жизнь за 1000, вторая за 2000, третья за 3000 и т.д.
+    // Сумма очков для N жизней = 1000 + 2000 + ... + N*1000 = N*(N+1)*500
+    while (p.lives < p.maxLives) {
+      const nextLifeCost = (p.livesFromScore + 1) * 1000;
+      const totalNeeded = (p.livesFromScore + 1) * (p.livesFromScore + 2) * 500;
+      
+      if (p.score >= totalNeeded) {
+        p.lives++;
+        p.livesFromScore++;
+        this.addFloatingText(p.x, p.y - 40, `+1 ❤ (${nextLifeCost} очков)`, '#ff4444');
+        audio.pickup();
+      } else {
+        break;
+      }
     }
   }
 
@@ -1017,7 +1025,14 @@ export class Game {
       if (rand < 0.3) {
         type = 'weapon';
         const weapons: WeaponType[] = ['machinegun', 'laser', 'rockets'];
-        subtype = weapons[Math.floor(Math.random() * 3)];
+        const weaponType = weapons[Math.floor(Math.random() * 3)];
+        // Уровень оружия: если того же типа - прокачка, если другого - от 1 до текущего уровня
+        if (weaponType === this.player.weapon) {
+          subtype = `${weaponType}:${this.player.weaponLevel}`;
+        } else {
+          const level = 1 + Math.floor(Math.random() * this.player.weaponLevel);
+          subtype = `${weaponType}:${level}`;
+        }
         color = '#ffff00';
         label = 'W';
       } else if (rand < 0.5) {
@@ -1047,7 +1062,14 @@ export class Game {
       if (rand < 0.35) {
         type = 'weapon';
         const weapons: WeaponType[] = ['machinegun', 'laser', 'rockets'];
-        subtype = weapons[Math.floor(Math.random() * 3)];
+        const weaponType = weapons[Math.floor(Math.random() * 3)];
+        // Уровень оружия: если того же типа - прокачка, если другого - от 1 до текущего уровня
+        if (weaponType === this.player.weapon) {
+          subtype = `${weaponType}:${this.player.weaponLevel}`;
+        } else {
+          const level = 1 + Math.floor(Math.random() * this.player.weaponLevel);
+          subtype = `${weaponType}:${level}`;
+        }
         color = '#ffff00';
         label = 'W';
       } else if (rand < 0.5) {
@@ -1094,19 +1116,26 @@ export class Game {
 
     switch (pk.type) {
       case 'weapon': {
-        const wt = pk.subtype as WeaponType;
+        // Формат subtype: "weaponType" или "weaponType:level"
+        const parts = pk.subtype.split(':');
+        const wt = parts[0] as WeaponType;
+        const weaponLevel = parts.length > 1 ? parseInt(parts[1]) : 1;
+        
         const weaponNames: Record<WeaponType, string> = {
           machinegun: 'Пулемёт',
           laser: 'Лазер',
           rockets: 'Ракеты'
         };
+        
         if (p.weapon === wt) {
+          // То же оружие - прокачка
           p.weaponLevel = Math.min(5, p.weaponLevel + 1);
           this.addFloatingText(pk.x, pk.y - 20, `${weaponNames[wt]} Ур.${p.weaponLevel}!`, '#ffff00');
         } else {
+          // Другое оружие - устанавливаем уровень из приза
           p.weapon = wt;
-          p.weaponLevel = 1;
-          this.addFloatingText(pk.x, pk.y - 20, `${weaponNames[wt]} получен!`, '#ffff00');
+          p.weaponLevel = Math.min(5, weaponLevel);
+          this.addFloatingText(pk.x, pk.y - 20, `${weaponNames[wt]} Ур.${p.weaponLevel}!`, '#ffff00');
         }
         break;
       }
@@ -1691,8 +1720,13 @@ export class Game {
   renderWeaponPickup(pk: Pickup) {
     const ctx = this.ctx;
     const r = pk.radius;
+    
+    // Парсим subtype для получения типа оружия и уровня
+    const parts = pk.subtype.split(':');
+    const weaponType = parts[0];
+    const weaponLevel = parts.length > 1 ? parseInt(parts[1]) : 1;
 
-    if (pk.subtype === 'machinegun') {
+    if (weaponType === 'machinegun') {
       // Пулемёт: ствол с патронами
       ctx.fillStyle = '#ffdd00';
       ctx.strokeStyle = '#fff';
@@ -1710,7 +1744,7 @@ export class Game {
         ctx.arc(-8 + i * 8, -r - 3, 2, 0, Math.PI * 2);
         ctx.fill();
       }
-    } else if (pk.subtype === 'laser') {
+    } else if (weaponType === 'laser') {
       // Лазер: кристалл/призма
       ctx.fillStyle = '#00ffff';
       ctx.strokeStyle = '#fff';
@@ -1730,7 +1764,7 @@ export class Game {
       ctx.moveTo(0, -r * 0.5);
       ctx.lineTo(0, r * 0.5);
       ctx.stroke();
-    } else if (pk.subtype === 'rockets') {
+    } else if (weaponType === 'rockets') {
       // Ракета: корпус с плавниками
       ctx.fillStyle = '#ff6600';
       ctx.strokeStyle = '#fff';
@@ -1769,6 +1803,16 @@ export class Game {
       ctx.fill();
     }
 
+    // Уровень оружия (уголок)
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeText(`${weaponLevel}`, r * 0.6, -r * 0.6);
+    ctx.fillText(`${weaponLevel}`, r * 0.6, -r * 0.6);
+
     // Подпись
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 9px Arial';
@@ -1779,7 +1823,7 @@ export class Game {
       laser: 'Лазер',
       rockets: 'Ракеты'
     };
-    ctx.fillText(names[pk.subtype] || '', 0, r + 2);
+    ctx.fillText(names[weaponType] || '', 0, r + 2);
   }
 
   renderShieldPickup(pk: Pickup) {
@@ -2093,18 +2137,30 @@ export class Game {
     // Score
     ctx.fillText(`Очки: ${p.score}${p.scoreMultiplier > 1 ? ` (x${p.scoreMultiplier})` : ''}`, 15, 45);
     
-    // Progress to next life
-    const progressToLife = p.score % 1000;
-    const progressWidth = 150;
-    const progressX = 15;
-    const progressY = 52;
-    ctx.fillStyle = '#333';
-    ctx.fillRect(progressX, progressY, progressWidth, 4);
-    ctx.fillStyle = '#ff4444';
-    ctx.fillRect(progressX, progressY, (progressToLife / 1000) * progressWidth, 4);
-    ctx.fillStyle = '#888';
-    ctx.font = '10px Arial';
-    ctx.fillText(`❤ ${1000 - progressToLife} до +1 жизни`, 15, 68);
+    // Progress to next life (progressive system)
+    if (p.lives < p.maxLives) {
+      const nextLifeCost = (p.livesFromScore + 1) * 1000;
+      const currentThreshold = p.livesFromScore * (p.livesFromScore + 1) * 500;
+      const nextThreshold = (p.livesFromScore + 1) * (p.livesFromScore + 2) * 500;
+      const progress = p.score - currentThreshold;
+      const needed = nextThreshold - currentThreshold;
+      const progressRatio = Math.min(1, progress / needed);
+      
+      const progressWidth = 150;
+      const progressX = 15;
+      const progressY = 52;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(progressX, progressY, progressWidth, 4);
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(progressX, progressY, progressRatio * progressWidth, 4);
+      ctx.fillStyle = '#888';
+      ctx.font = '10px Arial';
+      ctx.fillText(`❤ ${needed - progress} до +1 жизни (нужно ${nextLifeCost})`, 15, 68);
+    } else {
+      ctx.fillStyle = '#44ff44';
+      ctx.font = '10px Arial';
+      ctx.fillText(`❤ Максимум жизней!`, 15, 68);
+    }
     
     // Wave
     ctx.fillText(`Волна: ${this.wave}`, 15, 82);
