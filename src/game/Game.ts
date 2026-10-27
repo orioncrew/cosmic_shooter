@@ -52,6 +52,7 @@ export class Game {
   floatingTexts: { x: number; y: number; text: string; color: string; life: number }[] = [];
 
   onGameOver?: (stats: GameStats) => void;
+  onExit?: () => void;
   animationId = 0;
   lastTime = 0;
   handleContextMenu = (e: Event) => e.preventDefault();
@@ -134,6 +135,9 @@ export class Game {
   handleKeyDown(e: KeyboardEvent) {
     this.keys.add(e.key.toLowerCase());
     if (e.key === 'p' || e.key === 'з') this.paused = !this.paused;
+    if (e.key === 'Escape' && this.paused && this.onExit) {
+      this.onExit();
+    }
   }
 
   handleKeyUp(e: KeyboardEvent) {
@@ -1309,6 +1313,9 @@ export class Game {
       ctx.fillText('ПАУЗА', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
       ctx.font = '20px Arial';
       ctx.fillText('Нажмите P для продолжения', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 40);
+      ctx.fillStyle = '#ff6666';
+      ctx.font = '18px Arial';
+      ctx.fillText('Нажмите ESC для выхода в меню', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 80);
     }
 
     if (this.gameOver) {

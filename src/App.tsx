@@ -31,6 +31,12 @@ function App() {
         setScreen('gameover');
       };
 
+      game.onExit = () => {
+        game.stop();
+        gameRef.current = null;
+        setScreen('menu');
+      };
+
       game.start();
 
       return () => {
