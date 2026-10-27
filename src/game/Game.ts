@@ -49,6 +49,7 @@ export class Game {
   waveAnnouncement = '';
   waveAnnouncementTimer = 0;
   screenShake = 0;
+  floatingTexts: { x: number; y: number; text: string; color: string; life: number }[] = [];
 
   onGameOver?: (stats: GameStats) => void;
   animationId = 0;
@@ -192,6 +193,7 @@ export class Game {
     this.updatePickups(dt);
     this.updateParticles(dt);
     this.updateCompanion(dt);
+    this.updateFloatingTexts(dt);
     this.checkCollisions();
     this.updateWave(dt);
 
@@ -652,6 +654,21 @@ export class Game {
     }
   }
 
+  updateFloatingTexts(dt: number) {
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.y -= 40 * dt;
+      ft.life -= dt;
+      if (ft.life <= 0) {
+        this.floatingTexts.splice(i, 1);
+      }
+    }
+  }
+
+  addFloatingText(x: number, y: number, text: string, color: string) {
+    this.floatingTexts.push({ x, y, text, color, life: 1.5 });
+  }
+
   spawnParticles(x: number, y: number, color: string, count: number) {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -1051,7 +1068,7 @@ export class Game {
 
     this.pickups.push({
       x, y, vy: 80,
-      type, subtype, radius: 12,
+      type, subtype, radius: 16,
       color, label, pulsePhase: 0
     });
   }
@@ -1064,39 +1081,63 @@ export class Game {
     switch (pk.type) {
       case 'weapon': {
         const wt = pk.subtype as WeaponType;
+        const weaponNames: Record<WeaponType, string> = {
+          machinegun: 'Пулемёт',
+          laser: 'Лазер',
+          rockets: 'Ракеты'
+        };
         if (p.weapon === wt) {
           p.weaponLevel = Math.min(5, p.weaponLevel + 1);
+          this.addFloatingText(pk.x, pk.y - 20, `${weaponNames[wt]} Ур.${p.weaponLevel}!`, '#ffff00');
         } else {
           p.weapon = wt;
           p.weaponLevel = 1;
+          this.addFloatingText(pk.x, pk.y - 20, `${weaponNames[wt]} получен!`, '#ffff00');
         }
         break;
       }
       case 'shield': {
         const st = pk.subtype as ShieldType;
+        const shieldNames: Record<ShieldType, string> = {
+          immortality: 'Бессмертие',
+          killRing: 'Кольцо убийства',
+          oneTime: 'Одноразовый щит'
+        };
         if (st === 'oneTime') {
           p.oneTimeShields = Math.min(3, p.oneTimeShields + 1);
+          this.addFloatingText(pk.x, pk.y - 20, `Щит ${p.oneTimeShields}/3`, '#44ff44');
         } else {
           p.shield = st;
           p.shieldTimer = 10;
+          this.addFloatingText(pk.x, pk.y - 20, shieldNames[st], '#00ffcc');
         }
         break;
       }
       case 'ultimate': {
+        const ultNames: Record<UltimateType, string> = {
+          bomb: 'Бомба',
+          meteor: 'Метеоритный дождь',
+          companion: 'Помощник'
+        };
         p.ultimate = pk.subtype as UltimateType;
+        this.addFloatingText(pk.x, pk.y - 20, `${ultNames[p.ultimate]}!`, '#ff0066');
         break;
       }
       case 'health': {
         p.lives = Math.min(p.maxLives, p.lives + 1);
+        this.addFloatingText(pk.x, pk.y - 20, '+1 ❤', '#ff4444');
         break;
       }
       case 'score': {
-        p.score += 100 * p.scoreMultiplier;
+        const gained = 100 * p.scoreMultiplier;
+        p.score += gained;
+        this.addFloatingText(pk.x, pk.y - 20, `+${gained}`, '#ffdd00');
         break;
       }
       case 'multiplier': {
         p.scoreMultiplier = 2;
         p.multiplierTimer = 15;
+        this.addFloatingText(pk.x, pk.y - 20, 'x2 Очки!', '#ffaa00');
         break;
       }
     }
@@ -1185,6 +1226,7 @@ export class Game {
     this.renderPlayer();
     this.renderExplosions();
     this.renderParticles();
+    this.renderFloatingTexts();
     this.renderCompanion();
     this.renderHUD();
     this.renderAnnouncement();
@@ -1577,6 +1619,24 @@ export class Game {
     ctx.globalAlpha = 1;
   }
 
+  renderFloatingTexts() {
+    const ctx = this.ctx;
+    for (const ft of this.floatingTexts) {
+      const alpha = Math.min(1, ft.life * 2);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = ft.color;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeText(ft.text, ft.x, ft.y);
+      ctx.fillText(ft.text, ft.x, ft.y);
+      ctx.restore();
+    }
+  }
+
   renderPickups() {
     const ctx = this.ctx;
 
@@ -1584,33 +1644,359 @@ export class Game {
       ctx.save();
       ctx.translate(pk.x, pk.y);
 
-      const pulse = 1 + Math.sin(pk.pulsePhase) * 0.2;
+      const pulse = 1 + Math.sin(pk.pulsePhase) * 0.15;
       ctx.scale(pulse, pulse);
 
-      // Glow
-      ctx.beginPath();
-      ctx.arc(0, 0, pk.radius + 3, 0, Math.PI * 2);
-      ctx.fillStyle = pk.color + '44';
-      ctx.fill();
+      // Outer glow
+      ctx.shadowColor = pk.color;
+      ctx.shadowBlur = 12;
 
-      // Body
-      ctx.beginPath();
-      ctx.arc(0, 0, pk.radius, 0, Math.PI * 2);
-      ctx.fillStyle = pk.color;
-      ctx.fill();
+      if (pk.type === 'weapon') {
+        this.renderWeaponPickup(pk);
+      } else if (pk.type === 'shield') {
+        this.renderShieldPickup(pk);
+      } else if (pk.type === 'ultimate') {
+        this.renderUltimatePickup(pk);
+      } else if (pk.type === 'health') {
+        this.renderHealthPickup(pk);
+      } else if (pk.type === 'score') {
+        this.renderScorePickup(pk);
+      } else if (pk.type === 'multiplier') {
+        this.renderMultiplierPickup(pk);
+      }
+
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+  }
+
+  renderWeaponPickup(pk: Pickup) {
+    const ctx = this.ctx;
+    const r = pk.radius;
+
+    if (pk.subtype === 'machinegun') {
+      // Пулемёт: ствол с патронами
+      ctx.fillStyle = '#ffdd00';
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.5;
+      // Ствол
+      ctx.fillRect(-3, -r, 6, r * 1.6);
+      ctx.strokeRect(-3, -r, 6, r * 1.6);
+      // Рукоять
+      ctx.fillRect(-6, r * 0.3, 12, 6);
+      ctx.strokeRect(-6, r * 0.3, 12, 6);
+      // Пули
+      ctx.fillStyle = '#ff8800';
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(-8 + i * 8, -r - 3, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (pk.subtype === 'laser') {
+      // Лазер: кристалл/призма
+      ctx.fillStyle = '#00ffff';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(r * 0.7, 0);
+      ctx.lineTo(0, r);
+      ctx.lineTo(-r * 0.7, 0);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
+      // Луч внутри
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.5);
+      ctx.lineTo(0, r * 0.5);
+      ctx.stroke();
+    } else if (pk.subtype === 'rockets') {
+      // Ракета: корпус с плавниками
+      ctx.fillStyle = '#ff6600';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      // Корпус
+      ctx.beginPath();
+      ctx.moveTo(0, -r);
+      ctx.lineTo(5, -r * 0.3);
+      ctx.lineTo(5, r * 0.5);
+      ctx.lineTo(-5, r * 0.5);
+      ctx.lineTo(-5, -r * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Плавники
+      ctx.fillStyle = '#cc3300';
+      ctx.beginPath();
+      ctx.moveTo(-5, r * 0.3);
+      ctx.lineTo(-9, r * 0.7);
+      ctx.lineTo(-5, r * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(5, r * 0.3);
+      ctx.lineTo(9, r * 0.7);
+      ctx.lineTo(5, r * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      // Огонь
+      ctx.fillStyle = '#ffcc00';
+      ctx.beginPath();
+      ctx.moveTo(-3, r * 0.5);
+      ctx.lineTo(0, r);
+      ctx.lineTo(3, r * 0.5);
+      ctx.closePath();
+      ctx.fill();
+    }
 
-      // Label
-      ctx.fillStyle = '#000';
+    // Подпись
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const names: Record<string, string> = {
+      machinegun: 'Пулемёт',
+      laser: 'Лазер',
+      rockets: 'Ракеты'
+    };
+    ctx.fillText(names[pk.subtype] || '', 0, r + 2);
+  }
+
+  renderShieldPickup(pk: Pickup) {
+    const ctx = this.ctx;
+    const r = pk.radius;
+
+    // Форма щита
+    ctx.fillStyle = pk.color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -r);
+    ctx.lineTo(r * 0.9, -r * 0.5);
+    ctx.lineTo(r * 0.9, r * 0.2);
+    ctx.lineTo(0, r);
+    ctx.lineTo(-r * 0.9, r * 0.2);
+    ctx.lineTo(-r * 0.9, -r * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Внутренний символ
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    if (pk.subtype === 'immortality') {
+      // Крест бессмертия
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.5);
+      ctx.lineTo(0, r * 0.5);
+      ctx.moveTo(-r * 0.4, 0);
+      ctx.lineTo(r * 0.4, 0);
+      ctx.stroke();
+    } else if (pk.subtype === 'killRing') {
+      // Кольцо
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (pk.subtype === 'oneTime') {
+      // Цифра щита
+      ctx.fillStyle = '#fff';
       ctx.font = 'bold 10px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(pk.label, 0, 0);
-
-      ctx.restore();
+      ctx.fillText('◇', 0, 0);
     }
+
+    // Подпись
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 8px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const names: Record<string, string> = {
+      immortality: 'Бессмертие',
+      killRing: 'Кольцо',
+      oneTime: 'Щит x1'
+    };
+    ctx.fillText(names[pk.subtype] || '', 0, r + 2);
+  }
+
+  renderUltimatePickup(pk: Pickup) {
+    const ctx = this.ctx;
+    const r = pk.radius;
+
+    if (pk.subtype === 'bomb') {
+      // Бомба: круг с фитилём
+      ctx.fillStyle = '#222';
+      ctx.strokeStyle = pk.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 2, r * 0.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Фитиль
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.6);
+      ctx.quadraticCurveTo(4, -r, 2, -r * 1.1);
+      ctx.stroke();
+      // Искра
+      ctx.fillStyle = '#ffff00';
+      ctx.beginPath();
+      ctx.arc(2, -r * 1.1, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (pk.subtype === 'meteor') {
+      // Метеорит: камень с хвостом
+      ctx.fillStyle = '#884400';
+      ctx.strokeStyle = pk.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, -r * 0.3);
+      ctx.lineTo(r * 0.3, -r * 0.7);
+      ctx.lineTo(r * 0.7, -r * 0.1);
+      ctx.lineTo(r * 0.4, r * 0.6);
+      ctx.lineTo(-r * 0.3, r * 0.5);
+      ctx.lineTo(-r * 0.7, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Огненный хвост
+      ctx.fillStyle = '#ff6600';
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, -r * 0.3);
+      ctx.lineTo(-r * 1.1, -r * 0.8);
+      ctx.lineTo(-r * 0.7, 0);
+      ctx.closePath();
+      ctx.fill();
+    } else if (pk.subtype === 'companion') {
+      // Помощник: маленький корабль
+      ctx.fillStyle = '#aa00ff';
+      ctx.strokeStyle = '#ff00ff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.8);
+      ctx.lineTo(-r * 0.7, r * 0.5);
+      ctx.lineTo(0, r * 0.2);
+      ctx.lineTo(r * 0.7, r * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Орбита
+      ctx.strokeStyle = '#ff00ff88';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Подпись
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 8px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const names: Record<string, string> = {
+      bomb: 'Бомба',
+      meteor: 'Метеорит',
+      companion: 'Помощник'
+    };
+    ctx.fillText(names[pk.subtype] || '', 0, r + 2);
+  }
+
+  renderHealthPickup(pk: Pickup) {
+    const ctx = this.ctx;
+    const r = pk.radius;
+
+    // Сердце
+    ctx.fillStyle = pk.color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, r * 0.6);
+    ctx.bezierCurveTo(-r, r * 0.1, -r, -r * 0.6, 0, -r * 0.3);
+    ctx.bezierCurveTo(r, -r * 0.6, r, r * 0.1, 0, r * 0.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Плюс
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-1, -r * 0.2, 2, r * 0.5);
+    ctx.fillRect(-r * 0.25, -r * 0.05, r * 0.5, 2);
+
+    // Подпись
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('+1 ❤', 0, r + 2);
+  }
+
+  renderScorePickup(pk: Pickup) {
+    const ctx = this.ctx;
+    const r = pk.radius;
+
+    // Монета
+    ctx.fillStyle = '#ffdd00';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Внутренний круг
+    ctx.strokeStyle = '#aa8800';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
+    ctx.stroke();
+    // $
+    ctx.fillStyle = '#886600';
+    ctx.font = 'bold 11px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', 0, 1);
+
+    // Подпись
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px Arial';
+    ctx.textBaseline = 'top';
+    ctx.fillText('+100', 0, r + 2);
+  }
+
+  renderMultiplierPickup(pk: Pickup) {
+    const ctx = this.ctx;
+    const r = pk.radius;
+
+    // Звезда с x2
+    ctx.fillStyle = pk.color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const radius = i % 2 === 0 ? r : r * 0.5;
+      if (i === 0) ctx.moveTo(Math.cos(a) * radius, Math.sin(a) * radius);
+      else ctx.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // x2
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 9px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('x2', 0, 0);
+
+    // Подпись
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 8px Arial';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Множитель', 0, r + 2);
   }
 
   renderCompanion() {
