@@ -1616,15 +1616,17 @@ export class Game {
           ctx.fillStyle = '#ffaa00';
           ctx.fill();
         } else if (b.piercing) {
-          // Laser
+          // Laser - поворачиваем в направлении движения
+          const angle = Math.atan2(b.vy, b.vx) + Math.PI / 2;
+          ctx.rotate(angle);
           ctx.beginPath();
           ctx.moveTo(0, -10);
           ctx.lineTo(-2, 10);
           ctx.lineTo(2, 10);
           ctx.closePath();
-          ctx.fillStyle = '#00ffff';
+          ctx.fillStyle = b.color;
           ctx.fill();
-          ctx.shadowColor = '#00ffff';
+          ctx.shadowColor = b.color;
           ctx.shadowBlur = 10;
           ctx.fill();
         } else {
