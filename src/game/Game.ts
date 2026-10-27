@@ -1201,13 +1201,23 @@ export class Game {
   render() {
     const ctx = this.ctx;
     
-    // Background with gradient
+    ctx.save();
+    
+    // Screen shake - applied to everything including background
+    if (this.screenShake > 0) {
+      const shakeX = (Math.random() - 0.5) * this.screenShake * 10;
+      const shakeY = (Math.random() - 0.5) * this.screenShake * 10;
+      ctx.translate(shakeX, shakeY);
+      this.screenShake = Math.max(0, this.screenShake - 0.05);
+    }
+    
+    // Background with gradient - draw larger to cover shake offset
     const bgGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
     bgGrad.addColorStop(0, '#050510');
     bgGrad.addColorStop(0.5, '#0a0a2a');
     bgGrad.addColorStop(1, '#0a0520');
     ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillRect(-20, -20, CANVAS_WIDTH + 40, CANVAS_HEIGHT + 40);
 
     // Nebula effect
     ctx.save();
@@ -1221,17 +1231,9 @@ export class Game {
       grad.addColorStop(0, colors[i]);
       grad.addColorStop(1, 'transparent');
       ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      ctx.fillRect(-20, -20, CANVAS_WIDTH + 40, CANVAS_HEIGHT + 40);
     }
     ctx.restore();
-
-    // Screen shake
-    if (this.screenShake > 0) {
-      const shakeX = (Math.random() - 0.5) * this.screenShake * 10;
-      const shakeY = (Math.random() - 0.5) * this.screenShake * 10;
-      ctx.translate(shakeX, shakeY);
-      this.screenShake -= 0.05;
-    }
 
     this.renderStars();
     this.renderPickups();
@@ -1244,6 +1246,8 @@ export class Game {
     this.renderCompanion();
     this.renderHUD();
     this.renderAnnouncement();
+
+    ctx.restore();
 
     if (this.paused) {
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
