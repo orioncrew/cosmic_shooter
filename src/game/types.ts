@@ -103,6 +103,7 @@ export interface Enemy {
   movePattern: number;
   moveTimer: number;
   angle: number;
+  armor: number; // процент снижения урона (0-1)
 }
 
 export interface Companion {

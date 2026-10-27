@@ -563,12 +563,15 @@ export class Game {
     if (hpPercent <= 0.25 && boss.bossPhase < 3) {
       boss.bossPhase = 3;
       boss.speed *= 1.3;
+      boss.armor = 0.5; // 50% снижение урона
     } else if (hpPercent <= 0.5 && boss.bossPhase < 2) {
       boss.bossPhase = 2;
       boss.speed *= 1.2;
+      boss.armor = 0.4; // 40% снижение урона
     } else if (hpPercent <= 0.75 && boss.bossPhase < 1) {
       boss.bossPhase = 1;
       boss.speed *= 1.1;
+      boss.armor = 0.3; // 30% снижение урона
     }
   }
 
@@ -811,6 +814,7 @@ export class Game {
       movePattern: Math.random() > 0.5 ? 1 : 2,
       moveTimer: Math.random() * 10,
       angle: 0,
+      armor: 0,
     };
 
     this.enemies.push(enemy);
@@ -849,6 +853,7 @@ export class Game {
       movePattern: 1,
       moveTimer: 0,
       angle: 0,
+      armor: 0.2, // Начальная броня 20%
     };
 
     this.enemies.push(boss);
@@ -977,8 +982,14 @@ export class Game {
     const e = this.enemies[idx];
     if (!e || e.hasShield) return;
     
-    e.hp -= damage;
-    this.stats.damageDealt += damage;
+    // Применяем броню босса
+    let actualDamage = damage;
+    if (e.isBoss && e.armor > 0) {
+      actualDamage = damage * (1 - e.armor);
+    }
+    
+    e.hp -= actualDamage;
+    this.stats.damageDealt += actualDamage;
 
     if (e.hp <= 0) {
       this.killEnemy(idx);
@@ -1582,11 +1593,17 @@ export class Game {
     ctx.lineWidth = 1;
     ctx.strokeRect(-barWidth / 2, barY, barWidth, barHeight);
 
-    // Phase indicators
+    // Phase and armor indicators
     ctx.fillStyle = '#fff';
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(`Фаза ${e.bossPhase + 1}/4`, 0, barY - 5);
+    ctx.fillText(`Фаза ${e.bossPhase + 1}/4`, 0, barY - 15);
+    
+    // Armor indicator
+    if (e.armor > 0) {
+      ctx.fillStyle = '#88aaff';
+      ctx.fillText(`🛡 ${Math.round(e.armor * 100)}%`, 0, barY - 5);
+    }
   }
 
   renderBullets() {
