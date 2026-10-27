@@ -78,6 +78,7 @@ export interface Player {
   shootCooldown: number;
   laserBurstCount: number;
   laserBurstTimer: number;
+  nextLifeAt: number; // порог очков для следующей дополнительной жизни
 }
 
 export interface Enemy {

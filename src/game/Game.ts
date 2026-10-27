@@ -104,6 +104,7 @@ export class Game {
       shootCooldown: 0,
       laserBurstCount: 0,
       laserBurstTimer: 0,
+      nextLifeAt: 1000,
     };
   }
 
@@ -940,6 +941,19 @@ export class Game {
     }
   }
 
+  addScore(amount: number) {
+    const p = this.player;
+    p.score += amount;
+    
+    // Проверяем порог очков для дополнительной жизни
+    while (p.score >= p.nextLifeAt && p.lives < p.maxLives) {
+      p.lives++;
+      this.addFloatingText(p.x, p.y - 40, '+1 ❤ (1000 очков)!', '#ff4444');
+      audio.pickup();
+      p.nextLifeAt += 1000;
+    }
+  }
+
   damageEnemy(idx: number, damage: number) {
     const e = this.enemies[idx];
     if (!e || e.hasShield) return;
@@ -958,7 +972,7 @@ export class Game {
 
     this.stats.enemiesKilled++;
     const scoreGain = e.points * this.player.scoreMultiplier * this.diffSettings.scoreMult;
-    this.player.score += Math.floor(scoreGain);
+    this.addScore(Math.floor(scoreGain));
 
     this.explosions.push({
       x: e.x, y: e.y, radius: 0,
@@ -1130,7 +1144,7 @@ export class Game {
       }
       case 'score': {
         const gained = 100 * p.scoreMultiplier;
-        p.score += gained;
+        this.addScore(gained);
         this.addFloatingText(pk.x, pk.y - 20, `+${gained}`, '#ffdd00');
         break;
       }
@@ -2060,10 +2074,10 @@ export class Game {
 
     // Left side - Lives, Score, Wave
     ctx.fillStyle = 'rgba(0, 20, 40, 0.7)';
-    ctx.fillRect(5, 5, 200, 100);
+    ctx.fillRect(5, 5, 200, 115);
     ctx.strokeStyle = 'rgba(0, 255, 204, 0.3)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(5, 5, 200, 100);
+    ctx.strokeRect(5, 5, 200, 115);
 
     ctx.fillStyle = '#fff';
     ctx.font = '14px Arial';
@@ -2075,8 +2089,21 @@ export class Game {
     // Score
     ctx.fillText(`Очки: ${p.score}${p.scoreMultiplier > 1 ? ` (x${p.scoreMultiplier})` : ''}`, 15, 45);
     
+    // Progress to next life
+    const progressToLife = p.score % 1000;
+    const progressWidth = 150;
+    const progressX = 15;
+    const progressY = 52;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(progressX, progressY, progressWidth, 4);
+    ctx.fillStyle = '#ff4444';
+    ctx.fillRect(progressX, progressY, (progressToLife / 1000) * progressWidth, 4);
+    ctx.fillStyle = '#888';
+    ctx.font = '10px Arial';
+    ctx.fillText(`❤ ${1000 - progressToLife} до +1 жизни`, 15, 68);
+    
     // Wave
-    ctx.fillText(`Волна: ${this.wave}`, 15, 65);
+    ctx.fillText(`Волна: ${this.wave}`, 15, 82);
 
     // Weapon
     const weaponNames: Record<WeaponType, string> = {
@@ -2084,7 +2111,7 @@ export class Game {
       laser: 'Лазер',
       rockets: 'Ракеты'
     };
-    ctx.fillText(`${weaponNames[p.weapon]} [Ур.${p.weaponLevel}]`, 15, 85);
+    ctx.fillText(`${weaponNames[p.weapon]} [Ур.${p.weaponLevel}]`, 15, 99);
 
     // Right side - Shield, Ultimate, Enemies
     ctx.fillStyle = 'rgba(0, 20, 40, 0.7)';
