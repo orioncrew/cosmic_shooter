@@ -339,6 +339,7 @@ export class Game {
         const speed = 800;
         const burstCount = Math.min(level, 5);
 
+        // Основные выстрелы вверх
         for (let i = 0; i < burstCount; i++) {
           setTimeout(() => {
             if (this.gameOver) return;
@@ -351,6 +352,41 @@ export class Game {
             audio.shootLaser();
           }, i * 80);
         }
+
+        // 3-й уровень: стрельба назад
+        if (level >= 3) {
+          setTimeout(() => {
+            if (this.gameOver) return;
+            this.bullets.push({
+              x: p.x, y: p.y + p.height / 2,
+              vx: 0, vy: speed * 0.7, damage: damage * 0.6, radius: 4,
+              color: '#00cccc', isPlayer: true, piercing: true
+            });
+            this.stats.shotsFired++;
+            audio.shootLaser();
+          }, burstCount * 80);
+        }
+
+        // 5-й уровень: стрельба в стороны
+        if (level >= 5) {
+          setTimeout(() => {
+            if (this.gameOver) return;
+            // Влево
+            this.bullets.push({
+              x: p.x - p.width / 2, y: p.y,
+              vx: -speed * 0.8, vy: 0, damage: damage * 0.5, radius: 4,
+              color: '#00aaaa', isPlayer: true, piercing: true
+            });
+            // Вправо
+            this.bullets.push({
+              x: p.x + p.width / 2, y: p.y,
+              vx: speed * 0.8, vy: 0, damage: damage * 0.5, radius: 4,
+              color: '#00aaaa', isPlayer: true, piercing: true
+            });
+            this.stats.shotsFired += 2;
+            audio.shootLaser();
+          }, burstCount * 80 + 80);
+        }
         break;
       }
       case 'rockets': {
@@ -358,7 +394,8 @@ export class Game {
         p.shootCooldown = cooldown;
         const damage = 20 + level * 10;
         const speed = 300;
-        const count = Math.min(level, 4);
+        // 1-2 уровень: 1 ракета, 3-4 уровень: 2 ракеты, 5 уровень: 3 ракеты
+        const count = level >= 5 ? 3 : level >= 3 ? 2 : 1;
 
         for (let i = 0; i < count; i++) {
           const angle = (i - (count - 1) / 2) * 0.3;
@@ -2171,7 +2208,15 @@ export class Game {
       laser: 'Лазер',
       rockets: 'Ракеты'
     };
-    ctx.fillText(`${weaponNames[p.weapon]} [Ур.${p.weaponLevel}]`, 15, 99);
+    let weaponDesc = `${weaponNames[p.weapon]} [Ур.${p.weaponLevel}]`;
+    if (p.weapon === 'laser') {
+      if (p.weaponLevel >= 5) weaponDesc += ' ↑↓←→';
+      else if (p.weaponLevel >= 3) weaponDesc += ' ↑↓';
+    } else if (p.weapon === 'rockets') {
+      const rocketCount = p.weaponLevel >= 5 ? 3 : p.weaponLevel >= 3 ? 2 : 1;
+      weaponDesc += ` x${rocketCount}`;
+    }
+    ctx.fillText(weaponDesc, 15, 99);
 
     // Right side - Shield, Ultimate, Enemies
     ctx.fillStyle = 'rgba(0, 20, 40, 0.7)';
